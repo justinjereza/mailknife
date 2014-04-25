@@ -1,0 +1,64 @@
+#!/usr/bin/python
+
+import os, multiprocessing
+from getpass import getpass
+from argparse import ArgumentParser
+from imaplib import IMAP4, IMAP4_SSL
+
+def f(x):
+    print "PID: %i" % ( os.getpid())
+
+if __name__ == "__main__":
+    # TODO
+    # - Automatically specify number of workers or allow a custom number of
+    #   workers. Cannot be more than the number of CPU cores.
+    # - Specify hostname to connect to.
+    # - Specify username and password.
+    # - SSL support.
+
+    parser = ArgumentParser()
+    parser.add_argument('-u', '--username')
+    parser.add_argument('-p', '--password')
+    parser.add_argument('--authuser')
+    parser.add_argument('--authpass')
+
+    parser.add_argument('-H', '--host')
+    parser.add_argument('-P', '--port')
+
+    parser.add_argument('-s', '--ssl', action='store_true')
+    parser.add_argument('-k', '--key')
+    parser.add_argument('-c', '--certificate')
+
+    parser.add_argument('-w', '--workers', default=multiprocessing.cpu_count(), type=int)
+    arguments = parser.parse_args()
+
+    if not arguments.host: arguments.host = raw_input('Host: ')
+
+    if not arguments.username: arguments.username = raw_input('Username: ')
+    if not arguments.authuser: arguments.authuser = arguments.username
+
+    if not arguments.password: arguments.password = getpass()
+
+    kwargs = dict()
+    if arguments.host: kwargs['host'] = arguments.host
+    if arguments.port: kwargs['port'] = arguments.port
+    if arguments.key: kwargs['keyfile'] = arguments.key
+    if arguments.certificate: kwargs['certfile'] = arguments.certificate
+
+    if arguments.ssl:
+        imap = IMAP4_SSL(**kwargs)
+    else:
+        imap = IMAP4(**kwargs)
+
+    if __debug__:
+        print arguments
+        print imap.capabilities
+        imap.authenticate('PLAIN', lambda r: '%s\x00%s\x00%s' %
+                (arguments.username, arguments.authuser, arguments.password))
+        print imap.list()
+        imap.logout()
+
+    pool = multiprocessing.Pool()
+    pool.map_async(f, range(10))
+    pool.close()
+    pool.join()
